@@ -1,0 +1,8 @@
+[Unit]
+Description=OpenClaw Gateway Snapshot Pusher
+
+[Service]
+Type=oneshot
+ExecStart=%h/openclaw-bridge/push-snapshot.sh
+Environment=NETLIFY_INGEST_URL=https://%env:NETLIFY_SITE%.netlify.app/.netlify/functions/gateway_ingest
+Environment=GATEWAY_INGEST_TOKEN=%env:GATEWAY_INGEST_TOKEN
