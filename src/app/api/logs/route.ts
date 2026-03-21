@@ -4,15 +4,21 @@ import { isAuthed } from "@/lib/auth";
 export async function GET(req: Request) {
   if (!(await isAuthed())) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
 
-  // In Netlify prod, logs come from the private bridge via a Netlify function.
-  // In local dev, you can still point CC_BRIDGE_BASE_URL at your bridge.
-  const url = new URL(req.url);
-  const limit = url.searchParams.get("limit") || "200";
+  // Try to get logs from gateway-latest snapshot (pushed from KiloClaw)
+  const snapshotRes = await fetch("/.netlify/functions/gateway-latest", { cache: "no-store" });
+  const snapshot = await snapshotRes.json().catch(() => null);
 
-  const res = await fetch(`${process.env.CC_PUBLIC_BRIDGE_PROXY ?? "/.netlify/functions/bridge-proxy"}/logs?limit=${encodeURIComponent(limit)}`,
-    { cache: "no-store" },
-  );
+  if (snapshot?.ok && snapshot?.snapshot?.openclaw?.gatewayLogsText) {
+    // Parse the log text into lines
+    const logText = snapshot.snapshot.openclaw.gatewayLogsText;
+    const lines = logText
+      .split(/\r?\n/)
+      .filter(Boolean)
+      .slice(-200)
+      .map((line: string) => ({ raw: line }));
+    return NextResponse.json({ ok: true, lines });
+  }
 
-  const data = await res.json().catch(() => ({ ok: false, error: "bad json" }));
-  return NextResponse.json(data, { status: res.status });
+  // Fallback: no logs available
+  return NextResponse.json({ ok: true, lines: [] });
 }
