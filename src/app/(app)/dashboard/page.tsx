@@ -18,8 +18,18 @@ async function getJson<T = JsonValue>(path: string): Promise<T> {
     if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
     return res.json();
   } catch (e) {
-    // Fallback: return placeholder data if fetch fails
-    return { ok: true, note: "Dashboard unavailable", snapshot: null } as T;
+    console.error(`Failed to fetch ${path}:`, e);
+    // Return appropriate fallback based on path
+    if (path === "/api/status") {
+      return { ok: true, note: "Waiting for first snapshot from KiloClaw…", snapshot: null } as T;
+    }
+    if (path === "/api/logs") {
+      return { ok: true, lines: [], note: "Waiting for logs from KiloClaw…" } as T;
+    }
+    if (path === "/api/processes") {
+      return { ok: true, sessions: [], cron: [], subagents: [], note: "Waiting for data from KiloClaw…" } as T;
+    }
+    return { ok: true, error: "fetch failed" } as T;
   }
 }
 
