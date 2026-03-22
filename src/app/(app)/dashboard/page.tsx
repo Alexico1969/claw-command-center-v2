@@ -73,16 +73,40 @@ async function LogsPanel() {
 }
 
 async function ProcessesPanel() {
-  const data = await getJson("/api/processes");
+  const data = await getJson<{ ok: boolean; sessions?: unknown[]; cron?: unknown[]; subagents?: unknown[]; note?: string }>("/api/processes");
+
+  if (!data?.sessions && !data?.cron && !data?.subagents) {
+    return <div className="text-zinc-400">{data?.note || "Waiting for data from KiloClaw..."}</div>;
+  }
 
   return (
-    <div className="space-y-2">
-      <div className="text-zinc-400">
-        Coming next: show OpenClaw sessions/cron/subagents from the bridge.
-      </div>
-      <pre className="max-h-[220px] overflow-auto rounded-lg bg-black/30 border border-zinc-800 p-3 text-xs text-zinc-300">
-        {JSON.stringify(data, null, 2)}
-      </pre>
+    <div className="space-y-4 text-xs">
+      {data.sessions?.length ? (
+        <div>
+          <div className="font-semibold text-zinc-300 mb-1">Sessions ({data.sessions.length})</div>
+          <pre className="max-h-[80px] overflow-auto rounded bg-black/30 border border-zinc-800 p-2 text-zinc-400">
+            {JSON.stringify(data.sessions, null, 2)}
+          </pre>
+        </div>
+      ) : null}
+      
+      {data.cron?.length ? (
+        <div>
+          <div className="font-semibold text-zinc-300 mb-1">Cron Jobs ({data.cron.length})</div>
+          <pre className="max-h-[80px] overflow-auto rounded bg-black/30 border border-zinc-800 p-2 text-zinc-400">
+            {JSON.stringify(data.cron, null, 2)}
+          </pre>
+        </div>
+      ) : null}
+      
+      {data.subagents?.length ? (
+        <div>
+          <div className="font-semibold text-zinc-300 mb-1">Subagents ({data.subagents.length})</div>
+          <pre className="max-h-[80px] overflow-auto rounded bg-black/30 border border-zinc-800 p-2 text-zinc-400">
+            {JSON.stringify(data.subagents, null, 2)}
+          </pre>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -16,6 +16,11 @@ gateway_status="$(openclaw gateway status 2>&1 || true)"
 # gateway_logs="$(journalctl -u openclaw-gateway --no-pager -n 80 2>/dev/null || true)"
 gateway_logs=""
 
+# Get OpenClaw sessions, cron, and subagents data
+sessions_json="$(openclaw sessions --json 2>&1 || echo '[]')"
+cron_json="$(openclaw cron list --json 2>&1 || echo '[]')"
+subagents_json="$(openclaw subagents list --json 2>&1 || echo '[]')"
+
 payload="$(jq -n \
   --arg host "$host" \
   --argjson ts "$ts" \
@@ -24,13 +29,19 @@ payload="$(jq -n \
   --argjson memAvailMb "$mem_mb" \
   --arg gwStatus "$gateway_status" \
   --arg gwLogs "$gateway_logs" \
+  --argjson sessions "$sessions_json" \
+  --argjson cron "$cron_json" \
+  --argjson subagents "$subagents_json" \
   '{
     host: $host,
     ts: $ts,
     hostStats: { uptimeSec: $uptimeSec, load1: $load1, memAvailMb: $memAvailMb },
     openclaw: {
       gatewayStatusText: $gwStatus,
-      gatewayLogsText: $gwLogs
+      gatewayLogsText: $gwLogs,
+      sessions: $sessions,
+      cron: $cron,
+      subagents: $subagents
     }
   }'
 )"
