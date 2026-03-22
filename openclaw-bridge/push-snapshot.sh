@@ -17,9 +17,10 @@ gateway_status="$(openclaw gateway status 2>&1 || true)"
 gateway_logs=""
 
 # Get OpenClaw sessions, cron, and subagents data
-sessions_json="$(openclaw sessions --json 2>&1 || echo '[]')"
-cron_json="$(openclaw cron list --json 2>&1 || echo '[]')"
-subagents_json="$(openclaw subagents list --json 2>&1 || echo '[]')"
+# Note: "subagents" CLI command not available on OpenClaw 2026.2.26 - use "agents list" instead
+sessions_json="$(openclaw sessions --json 2>/dev/null || echo '[]')"
+cron_json="$(openclaw cron list --json 2>/dev/null || echo '[]')"
+subagents_json="$(openclaw agents list --json 2>/dev/null || echo '[]')"
 
 payload="$(jq -n \
   --arg host "$host" \

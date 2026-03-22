@@ -10,6 +10,7 @@ type JsonObject = Record<string, unknown>;
 export type OpenClawSnapshot = JsonObject & {
   openclaw?: {
     gatewayLogsText?: string;
+    gatewayStatusText?: string;
     sessions?: unknown[] | string;
     cron?: unknown[] | string;
     subagents?: unknown[] | string;

@@ -15,6 +15,25 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
   );
 }
 
+function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h ${mins}m`;
+  return `${mins}m`;
+}
+
+function formatTimestamp(ts: number): string {
+  return new Date(ts * 1000).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
 async function StatusPanel() {
   const data = await getStatusData();
 
@@ -26,10 +45,46 @@ async function StatusPanel() {
     return <div className="text-zinc-400">{data.note || "Waiting for first snapshot from KiloClaw..."}</div>;
   }
 
+  const snap = data.snapshot;
+  const ts = Number(snap.ts) || 0;
+  const host = String(snap.host || "unknown");
+  const hostStats = snap.hostStats as Record<string, unknown> | undefined;
+  const uptime = hostStats?.uptime as number | undefined;
+  const load = hostStats?.load as number[] | undefined;
+  const mem = hostStats?.memory as Record<string, number> | undefined;
+  const gatewayStatus = snap.openclaw?.gatewayStatusText as string | undefined;
+
   return (
-    <pre className="max-h-[220px] overflow-auto rounded-lg border border-zinc-800 bg-black/30 p-3 text-xs text-zinc-300">
-      {JSON.stringify(data.snapshot, null, 2)}
-    </pre>
+    <div className="space-y-2 text-xs">
+      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+        <span className="text-zinc-400">Host</span>
+        <span className="font-mono text-zinc-200">{host}</span>
+      </div>
+      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+        <span className="text-zinc-400">Uptime</span>
+        <span className="font-mono text-zinc-200">{uptime ? formatUptime(uptime) : "—"}</span>
+      </div>
+      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+        <span className="text-zinc-400">Load</span>
+        <span className="font-mono text-zinc-200">
+          {load ? load.map((v) => v.toFixed(2)).join(" / ") : "—"}
+        </span>
+      </div>
+      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+        <span className="text-zinc-400">Memory</span>
+        <span className="font-mono text-zinc-200">
+          {mem ? `${((mem.used / mem.total) * 100).toFixed(1)}%` : "—"}
+        </span>
+      </div>
+      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+        <span className="text-zinc-400">Gateway</span>
+        <span className="font-mono text-green-400">{gatewayStatus || "connected"}</span>
+      </div>
+      <div className="flex items-center justify-between pt-1">
+        <span className="text-zinc-400">Last snapshot</span>
+        <span className="font-mono text-zinc-300">{ts ? formatTimestamp(ts) : "—"}</span>
+      </div>
+    </div>
   );
 }
 
@@ -68,9 +123,20 @@ async function ProcessesPanel() {
     return <div className="text-amber-300">Processes error: {data.error}</div>;
   }
 
+  // Check if snapshot exists at all
+  const hasSnapshot = data.sessions !== undefined || data.cron !== undefined || data.subagents !== undefined;
+  
+  // Check if there's actual data
   const hasEntries = data.sessions.length > 0 || data.cron.length > 0 || data.subagents.length > 0;
+  
+  // No snapshot at all - show "snapshot unavailable"
+  if (!hasSnapshot) {
+    return <div className="text-zinc-400">Snapshot unavailable</div>;
+  }
+  
+  // Snapshot exists but no sessions/cron/subagents data - show "no sessions in current snapshot"
   if (!hasEntries) {
-    return <div className="text-zinc-400">{data.note || "Waiting for data from KiloClaw..."}</div>;
+    return <div className="text-zinc-400">No sessions in current snapshot</div>;
   }
 
   return (
