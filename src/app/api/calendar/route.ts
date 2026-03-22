@@ -6,17 +6,21 @@ export async function GET() {
 
   const apiKey = process.env.GOOGLE_API;
   if (!apiKey) {
-    return NextResponse.json({ ok: false, error: "Google API not configured" }, { status: 500 });
+    console.error("GOOGLE_API not set in environment");
+    return NextResponse.json({ ok: false, error: "Google API not configured (GOOGLE_API env var missing)" }, { status: 500 });
   }
+  
+  console.log("GOOGLE_API is set, length:", apiKey.length);
 
-  // Get current time and time 7 days from now
-  const now = new Date().toISOString();
-  const future = new Date();
-  future.setDate(future.getDate() + 7);
-  const timeMax = future.toISOString();
+    // Get current time and time 7 days from now
+    const now = new Date().toISOString();
+    const future = new Date();
+    future.setDate(future.getDate() + 7);
+    const timeMax = future.toISOString();
 
-  try {
-    const url = `https://www.googleapis.com/calendar/v3/calendars/alexicoo@gmail.com/events?key=${apiKey}&timeMin=${now}&timeMax=${timeMax}&maxResults=20&singleEvents=true&orderBy=startTime`;
+    try {
+    // Use "primary" to access the user's primary calendar
+    const url = `https://www.googleapis.com/calendar/v3/calendars/primary/events?key=${apiKey}&timeMin=${now}&timeMax=${timeMax}&maxResults=20&singleEvents=true&orderBy=startTime`;
     
     const res = await fetch(url, { cache: "no-store" });
     
