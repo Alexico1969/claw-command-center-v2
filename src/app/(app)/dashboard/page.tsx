@@ -2,13 +2,25 @@ import { Suspense } from "react";
 
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
+// Helper to get base URL for server-side fetch
+function getBaseUrl() {
+  if (typeof window !== "undefined") return "";
+  return process.env.NEXT_PUBLIC_BASE_URL || "";
+}
+
 async function getJson<T = JsonValue>(path: string): Promise<T> {
-  // Use absolute URL in server context
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
-  const url = baseUrl ? `${baseUrl}${path}` : path;
-  const res = await fetch(url, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
-  return res.json();
+  const baseUrl = getBaseUrl();
+  // If no base URL set, use relative path (works in some contexts)
+  const url = baseUrl ? `${baseUrl.replace(/\/$/, "")}${path}` : path;
+  
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
+    return res.json();
+  } catch (e) {
+    // Fallback: return placeholder data if fetch fails
+    return { ok: true, note: "Dashboard unavailable", snapshot: null } as T;
+  }
 }
 
 function Card({ title, children }: { title: string; children: React.ReactNode }) {

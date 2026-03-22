@@ -2,6 +2,17 @@ import type { ReactNode } from "react";
 import { requireAuth } from "@/lib/auth";
 import Link from "next/link";
 
+// Simple server component logout button - uses form action
+function LogoutButton() {
+  return (
+    <form action="/api/auth/logout" method="post">
+      <button className="text-zinc-300 hover:text-white" type="submit">
+        Logout
+      </button>
+    </form>
+  );
+}
+
 export default async function AppLayout({ children }: { children: ReactNode }) {
   await requireAuth();
 
@@ -20,20 +31,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Link className="text-zinc-200 hover:text-white" href="/dashboard">
               Dashboard
             </Link>
-            <form
-              action="/api/auth/logout"
-              method="post"
-              onSubmit={() => {
-                // Let the request happen, then hard-nav to login.
-                setTimeout(() => {
-                  window.location.href = "/login";
-                }, 150);
-              }}
-            >
-              <button className="text-zinc-300 hover:text-white" type="submit">
-                Logout
-              </button>
-            </form>
+            <LogoutButton />
           </nav>
         </div>
       </header>
