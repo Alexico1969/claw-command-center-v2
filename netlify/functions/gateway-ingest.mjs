@@ -15,8 +15,9 @@ export default async (request) => {
     return new Response("method not allowed", { status: 405 });
   }
 
-  const token = process.env.GATEWAY_INGEST_TOKEN || "";
-  if (token) {
+  // Token is optional - only validate if explicitly set to a non-empty value
+  const token = process.env.GATEWAY_INGEST_TOKEN;
+  if (token && token.length > 0) {
     const auth = request.headers.get("authorization") || "";
     if (auth !== `Bearer ${token}`) return unauthorized();
   }
