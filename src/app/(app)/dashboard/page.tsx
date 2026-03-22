@@ -49,9 +49,10 @@ async function StatusPanel() {
   const ts = Number(snap.ts) || 0;
   const host = String(snap.host || "unknown");
   const hostStats = snap.hostStats as Record<string, unknown> | undefined;
-  const uptime = hostStats?.uptime as number | undefined;
-  const load = hostStats?.load as number[] | undefined;
-  const mem = hostStats?.memory as Record<string, number> | undefined;
+  const uptime = hostStats?.uptimeSec as number | undefined;
+  const load1 = hostStats?.load1 as number | undefined;
+  const memAvailMb = hostStats?.memAvailMb as number | undefined;
+  const memTotalMb = hostStats?.memTotalMb as number | undefined;
   const gatewayStatus = snap.openclaw?.gatewayStatusText as string | undefined;
 
   return (
@@ -67,13 +68,15 @@ async function StatusPanel() {
       <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
         <span className="text-zinc-400">Load</span>
         <span className="font-mono text-zinc-200">
-          {load ? load.map((v) => v.toFixed(2)).join(" / ") : "—"}
+          {load1 !== undefined ? load1.toFixed(2) : "—"}
         </span>
       </div>
       <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
         <span className="text-zinc-400">Memory</span>
         <span className="font-mono text-zinc-200">
-          {mem ? `${((mem.used / mem.total) * 100).toFixed(1)}%` : "—"}
+          {memAvailMb !== undefined && memTotalMb !== undefined 
+            ? `${(((memTotalMb - memAvailMb) / memTotalMb) * 100).toFixed(1)}%`
+            : "—"}
         </span>
       </div>
       <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
