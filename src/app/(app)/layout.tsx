@@ -31,6 +31,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
             <Link className="text-zinc-200 hover:text-white" href="/dashboard">
               Dashboard
             </Link>
+            <Link className="text-zinc-200 hover:text-white" href="/calendar">
+              Calendar
+            </Link>
             <LogoutButton />
           </nav>
         </div>
