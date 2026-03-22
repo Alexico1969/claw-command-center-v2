@@ -9,52 +9,63 @@ type CalendarEvent = {
   date: string;
 };
 
-// Sample events for the next 7 days (safe defaults)
-function getSampleEvents(): CalendarEvent[] {
-  const events: CalendarEvent[] = [];
-  const now = new Date();
-  
-  // Generate some sample events for the next 7 days
-  const sampleTitles = [
-    "Team Standup",
-    "Sprint Planning",
-    "Code Review",
-    "One-on-One",
-    "Product Demo",
-    "Architecture Review",
-    "Bug Triage"
-  ];
-  
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(now);
-    date.setDate(date.getDate() + i);
-    const dateStr = date.toISOString().split('T')[0];
+async function getCalendarEvents(): Promise<CalendarEvent[]> {
+  try {
+    const res = await fetch("/api/calendar", { cache: "no-store" });
+    const data = await res.json();
     
-    // Add 1-2 events per day
-    const numEvents = Math.floor(Math.random() * 2) + 1;
-    for (let j = 0; j < numEvents; j++) {
-      const hour = 9 + Math.floor(Math.random() * 8); // 9am - 5pm
-      const title = sampleTitles[Math.floor(Math.random() * sampleTitles.length)];
-      events.push({
-        id: `${dateStr}-${j}`,
-        title,
-        startTime: `${hour}:00`,
-        endTime: `${hour + 1}:00`,
-        location: Math.random() > 0.5 ? "Conference Room A" : "Zoom",
-        date: dateStr
-      });
+    if (!data.ok || !data.events) {
+      return [];
     }
+    
+    return data.events.map((event: any) => {
+      // Handle both date and dateTime formats
+      const startDateTime = event.startTime;
+      const endDateTime = event.endTime;
+      
+      // Extract date and time
+      let date = event.date;
+      let startTime = "";
+      let endTime = "";
+      
+      if (startDateTime?.includes('T')) {
+        const startParts = startDateTime.split('T');
+        date = startParts[0];
+        startTime = startParts[1]?.replace(/\.\d{3}/, '') || "";
+      } else if (startDateTime) {
+        date = startDateTime;
+        startTime = "All day";
+      }
+      
+      if (endDateTime?.includes('T')) {
+        const endParts = endDateTime.split('T');
+        endTime = endParts[1]?.replace(/\.\d{3}/, '') || "";
+      } else if (endDateTime) {
+        endTime = "";
+      }
+      
+      return {
+        id: event.id,
+        title: event.title,
+        startTime: startTime,
+        endTime: endTime,
+        location: event.location,
+        date
+      };
+    });
+  } catch (e) {
+    console.error("Failed to fetch calendar events:", e);
+    return [];
   }
-  
-  return events.sort((a, b) => {
-    const dateA = new Date(`${a.date}T${a.startTime}`);
-    const dateB = new Date(`${b.date}T${b.startTime}`);
-    return dateA.getTime() - dateB.getTime();
-  });
 }
 
 function CalendarPanel() {
-  const events = getSampleEvents();
+  // This will be rendered on the server and fetch real data
+  return <CalendarEvents />;
+}
+
+async function CalendarEvents() {
+  const events = await getCalendarEvents();
   const now = new Date();
   const today = now.toISOString().split('T')[0];
   
@@ -70,11 +81,11 @@ function CalendarPanel() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr + 'T00:00:00');
-    const today = new Date();
-    const tomorrow = new Date(today);
+    const todayDate = new Date();
+    const tomorrow = new Date(todayDate);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
-    if (dateStr === today.toISOString().split('T')[0]) return "Today";
+    if (dateStr === todayDate.toISOString().split('T')[0]) return "Today";
     if (dateStr === tomorrow.toISOString().split('T')[0]) return "Tomorrow";
     
     return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
@@ -89,7 +100,7 @@ function CalendarPanel() {
             {dayEvents.map(event => (
               <div key={event.id} className="flex items-center gap-3 p-3 rounded-lg bg-zinc-900/40 border border-zinc-800">
                 <div className="text-xs text-zinc-400 w-16">
-                  {event.startTime} - {event.endTime}
+                  {event.startTime || "All day"} {event.endTime ? `- ${event.endTime}` : ""}
                 </div>
                 <div className="flex-1">
                   <div className="text-sm text-zinc-200">{event.title}</div>
@@ -125,7 +136,7 @@ export default function CalendarPage() {
       </div>
 
       <div className="text-xs text-zinc-500">
-        Safe defaults shown. Connect to Notion or another calendar source for real events.
+        Events from Google Calendar (alexicoo@gmail.com) - next 7 days
       </div>
     </div>
   );
