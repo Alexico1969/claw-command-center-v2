@@ -18,7 +18,12 @@ function Card({ title, children }: { title: string; children: React.ReactNode })
 }
 
 async function StatusPanel() {
-  const data = await getJson("/api/status");
+  const data = await getJson<{ ok: boolean; snapshot?: unknown; note?: string }>("/api/status");
+  
+  if (!data.snapshot) {
+    return <div className="text-zinc-400">Waiting for first snapshot from KiloClaw…</div>;
+  }
+  
   return (
     <pre className="max-h-[220px] overflow-auto rounded-lg bg-black/30 border border-zinc-800 p-3 text-xs text-zinc-300">
       {JSON.stringify(data, null, 2)}
@@ -29,9 +34,10 @@ async function StatusPanel() {
 type LogLine = { raw?: string; msg?: string; message?: string; time?: string; timestamp?: string; level?: string; logLevelName?: string };
 
 async function LogsPanel() {
-  const data = await getJson<{ ok: boolean; lines?: LogLine[] }>("/api/logs?limit=200");
-  if (!data.ok || !data.lines) {
-    return <div className="text-zinc-400">Failed to load logs.</div>;
+  const data = await getJson<{ ok: boolean; lines?: LogLine[]; note?: string }>("/api/logs?limit=200");
+  
+  if (!data.lines || data.lines.length === 0) {
+    return <div className="text-zinc-400">{data.note || "Waiting for logs from KiloClaw…"}</div>;
   }
 
   const lines = data.lines
