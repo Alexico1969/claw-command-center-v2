@@ -3,7 +3,10 @@ import { Suspense } from "react";
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
 async function getJson<T = JsonValue>(path: string): Promise<T> {
-  const res = await fetch(path, { cache: "no-store" });
+  // Use absolute URL in server context
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "";
+  const url = baseUrl ? `${baseUrl}${path}` : path;
+  const res = await fetch(url, { cache: "no-store" });
   if (!res.ok) throw new Error(`${path} failed: ${res.status}`);
   return res.json();
 }
