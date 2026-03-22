@@ -1,53 +1,66 @@
 import { NextResponse } from "next/server";
-import { isAuthed } from "@/lib/auth";
+
+function unauthorized() {
+  return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+}
 
 export async function POST(req: Request) {
-  if (!(await isAuthed())) return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  const token = process.env.ALERTS_TOKEN;
+  if (!token) {
+    return NextResponse.json({ ok: false, error: "ALERTS_TOKEN not configured" }, { status: 500 });
+  }
+
+  const authHeader = req.headers.get("authorization");
+  if (authHeader !== `Bearer ${token}`) {
+    return unauthorized();
+  }
 
   const webhookUrl = process.env.DISCORD_WEBHOOK_URL;
   if (!webhookUrl) {
     return NextResponse.json({ ok: false, error: "Discord webhook not configured" }, { status: 500 });
   }
 
-  let body;
+  let body: { message?: unknown; severity?: string };
   try {
     body = await req.json();
   } catch {
     return NextResponse.json({ ok: false, error: "invalid json" }, { status: 400 });
   }
 
-  const { message, severity = "info" } = body;
-  
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  const severity = typeof body.severity === "string" ? body.severity : "info";
+
   if (!message) {
     return NextResponse.json({ ok: false, error: "message is required" }, { status: 400 });
   }
 
-  // Discord embed colors by severity
   const colors: Record<string, number> = {
     info: 3447003,
     warning: 16776960,
     error: 15158332,
-    success: 3066993
+    success: 3066993,
   };
 
   const embed = {
-    embeds: [{
-      title: `🚨 OpenClaw Alert: ${severity.toUpperCase()}`,
-      description: message,
-      color: colors[severity] || colors.info,
-      timestamp: new Date().toISOString(),
-      fields: [
-        { name: "Source", value: "Command Center", inline: true },
-        { name: "Severity", value: severity, inline: true }
-      ]
-    }]
+    embeds: [
+      {
+        title: `OpenClaw Alert: ${severity.toUpperCase()}`,
+        description: message,
+        color: colors[severity] || colors.info,
+        timestamp: new Date().toISOString(),
+        fields: [
+          { name: "Source", value: "Command Center", inline: true },
+          { name: "Severity", value: severity, inline: true },
+        ],
+      },
+    ],
   };
 
   try {
     const res = await fetch(webhookUrl, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(embed)
+      body: JSON.stringify(embed),
     });
 
     if (!res.ok) {
