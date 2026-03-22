@@ -14,7 +14,10 @@ async function getCalendarEvents(): Promise<CalendarEvent[]> {
     const res = await fetch("/api/calendar", { cache: "no-store" });
     const data = await res.json();
     
+    console.log("Calendar API response:", JSON.stringify(data));
+    
     if (!data.ok || !data.events) {
+      console.error("Calendar API error:", data.error, data.details);
       return [];
     }
     
