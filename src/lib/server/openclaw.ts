@@ -29,6 +29,7 @@ export type LogLine = {
   timestamp?: string;
   level?: string;
   logLevelName?: string;
+  source?: string;
 };
 
 export type LogsData =
@@ -89,9 +90,62 @@ export async function getLogsData(limit = 200): Promise<LogsData> {
 
   const lines = logText
     .split(/\r?\n/)
+    .map((line) => line.trim())
     .filter(Boolean)
-    .slice(-Math.max(1, limit))
-    .map((line) => ({ raw: line }));
+    .map((line) => {
+      try {
+        const parsed = JSON.parse(line) as Record<string, unknown>;
+        const meta = (parsed._meta as Record<string, unknown> | undefined) ?? undefined;
+        const numericMessageParts = Object.keys(parsed)
+          .filter((key) => /^\d+$/.test(key))
+          .sort((a, b) => Number(a) - Number(b))
+          .map((key) => parsed[key])
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter(Boolean);
+
+        const msg =
+          numericMessageParts.join(" ") ||
+          (typeof parsed.message === "string" ? parsed.message : undefined) ||
+          (typeof parsed.msg === "string" ? parsed.msg : undefined) ||
+          undefined;
+
+        return {
+          raw: line,
+          msg,
+          message: typeof parsed.message === "string" ? parsed.message : undefined,
+          time:
+            typeof parsed.time === "string"
+              ? parsed.time
+              : typeof parsed.timestamp === "string"
+                ? parsed.timestamp
+                : typeof meta?.date === "string"
+                  ? meta.date
+                  : undefined,
+          timestamp: typeof parsed.timestamp === "string" ? parsed.timestamp : undefined,
+          level:
+            typeof parsed.level === "string"
+              ? parsed.level
+              : typeof meta?.logLevelName === "string"
+                ? meta.logLevelName
+                : undefined,
+          logLevelName: typeof meta?.logLevelName === "string" ? meta.logLevelName : undefined,
+          source:
+            typeof meta?.name === "string"
+              ? meta.name
+              : typeof meta?.runtime === "string"
+                ? meta.runtime
+                : undefined,
+        } satisfies LogLine;
+      } catch {
+        return { raw: line } satisfies LogLine;
+      }
+    })
+    .filter((line) => {
+      const msg = line.msg ?? line.message ?? line.raw ?? "";
+      return String(msg).trim().length > 0;
+    })
+    .slice(-Math.max(1, limit));
 
   return { ok: true, lines };
 }

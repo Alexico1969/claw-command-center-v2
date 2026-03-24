@@ -1,0 +1,140 @@
+OpenClaw Agent -> Dashboard Connection Guide
+
+Purpose
+This dashboard does not directly call into a running OpenClaw agent.
+Instead, the agent (or a small bridge process running beside it) should push a JSON snapshot to the dashboard backend on a regular interval.
+
+Short answer to the question
+Yes: the agent should trigger a function endpoint regularly.
+The intended pattern in this repo is a periodic POST, about once every 60 seconds.
+
+Current architecture
+1. The dashboard reads the latest snapshot from the Netlify Blobs store named "gateway-observability".
+2. The ingest function writes the newest payload to "latest.json" and also stores a timestamped history copy.
+3. The dashboard pages and API routes read that stored snapshot and render:
+   - host status
+   - gateway status text
+   - gateway logs text
+   - sessions
+   - cron jobs
+   - subagents
+
+Primary ingest endpoint
+Use this endpoint:
+/.netlify/functions/gateway-ingest
+
+Method
+POST
+
+Headers
+Content-Type: application/json
+Authorization: Bearer <GATEWAY_INGEST_TOKEN>
+
+Auth behavior
+If GATEWAY_INGEST_TOKEN is set on the Netlify side, the bearer token must match.
+If that env var is blank or unset, the endpoint accepts unauthenticated POSTs.
+
+Important repo note
+There is also a function file named "gateway_ingest.mjs" in this repo, but it currently only returns a test response and does not store snapshots.
+For real ingestion, use "gateway-ingest".
+If any service file or agent config still points to "/.netlify/functions/gateway_ingest", update it.
+
+Recommended cadence
+- Default: every 60 seconds
+- Acceptable range: every 30 to 120 seconds
+- Avoid extremely fast polling unless we explicitly want near-real-time behavior
+
+Why 60 seconds
+- The existing timer example in this repo uses 60 seconds
+- The dashboard is a status board, not a live stream
+- Lower frequency keeps function calls and blob writes reasonable
+
+Expected payload shape
+Send a JSON object like this:
+
+{
+  "host": "my-hostname",
+  "ts": 1712345678,
+  "hostStats": {
+    "uptimeSec": 12345,
+    "load1": 0.42,
+    "memAvailMb": 2048,
+    "memTotalMb": 4096
+  },
+  "openclaw": {
+    "gatewayStatusText": "connected",
+    "gatewayLogsText": "last log lines here",
+    "sessions": [],
+    "cron": [],
+    "subagents": []
+  }
+}
+
+Field notes
+- host: hostname or stable agent name
+- ts: unix timestamp in seconds
+- hostStats.uptimeSec: integer seconds
+- hostStats.load1: numeric load average
+- hostStats.memAvailMb: available memory in MB
+- hostStats.memTotalMb: total memory in MB
+- openclaw.gatewayStatusText: plain text status shown in the dashboard
+- openclaw.gatewayLogsText: newline-delimited text for the log panel
+- openclaw.sessions: array
+- openclaw.cron: array
+- openclaw.subagents: array
+
+Minimum viable payload
+If the agent only has partial data, it can still send:
+
+{
+  "host": "my-hostname",
+  "ts": 1712345678,
+  "openclaw": {
+    "gatewayStatusText": "connected",
+    "sessions": [],
+    "cron": [],
+    "subagents": []
+  }
+}
+
+Recommended collection behavior for an OpenClaw-side agent
+1. Gather local host metrics.
+2. Run the local OpenClaw CLI commands that expose current state.
+3. Build the snapshot JSON.
+4. POST it to the ingest endpoint.
+5. Repeat on a timer.
+
+Suggested OpenClaw CLI calls
+- openclaw gateway status
+- openclaw sessions --json
+- openclaw cron list --json
+- openclaw agents list --json
+
+The repo already includes a working example
+See:
+- openclaw-bridge/push-snapshot.sh
+
+That script already does the following:
+- collects host stats
+- reads OpenClaw state
+- builds the JSON payload
+- posts it with curl
+
+Success criteria
+The connection is working when:
+- POSTs to gateway-ingest return HTTP 200 with {"ok": true, ...}
+- the dashboard Status panel shows a recent "Last snapshot" timestamp
+- the Background sessions panel shows sessions/cron/subagents data
+- the logs panel shows gateway log text if provided
+
+Failure handling
+- If a local OpenClaw command fails, send empty arrays instead of failing the whole snapshot
+- If the POST fails, log the error and retry on the next interval
+- Do not block the agent's core work on dashboard reporting
+
+Implementation preference
+The cleanest setup is:
+- keep the OpenClaw agent focused on its actual tasks
+- run a lightweight sidecar or scheduled bridge process that reports status to the dashboard
+
+This matches the pattern already present in this repository.

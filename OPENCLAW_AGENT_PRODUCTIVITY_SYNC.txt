@@ -1,0 +1,123 @@
+OpenClaw Agent -> Calendar Sync Instructions
+
+Purpose
+Your OpenClaw Agent should act as the source of truth for the website's Calendar page.
+Assume Google Calendar OAuth is already configured and usable by the agent.
+
+What the agent must do
+1. On startup, fetch all Google Calendar events from now through the next 7 days.
+2. Convert those events into the website payload format shown below.
+3. POST the full snapshot to the website ingest endpoint.
+4. Repeat the sync every 5 minutes.
+5. If a sync fails, log the error and try again on the next cycle.
+
+Website endpoints
+- Calendar page: /calendar
+- Ingest endpoint: /api/agent/productivity
+
+HTTP request
+- Method: POST
+- Content-Type: application/json
+- Authorization: Bearer <PRODUCTIVITY_INGEST_TOKEN>
+
+Auth behavior
+- If PRODUCTIVITY_INGEST_TOKEN is set on the website, the bearer token must match.
+- If PRODUCTIVITY_INGEST_TOKEN is blank or unset, the endpoint accepts unauthenticated POSTs.
+
+Calendar fetch rules
+- Source: Google Calendar
+- Time window: now through now + 7 days
+- Calendar to read: the authenticated user's primary calendar unless you intentionally choose another one
+- Include cancelled events only if you want them visible in the dashboard; otherwise omit them
+- Prefer returning results ordered by start time
+
+Fields to collect for each event
+- id
+- title
+- startTime
+- endTime
+- location
+- date
+- description
+- htmlLink
+
+Normalization rules
+- title: use the event summary/title
+- startTime: ISO 8601 timestamp for timed events
+- endTime: ISO 8601 timestamp when available
+- date: always send YYYY-MM-DD
+- location: optional
+- description: optional
+- htmlLink: optional Google Calendar link
+- All-day events are allowed; still send date, and send startTime in the source format you receive if needed
+
+Payload shape
+Send JSON like this:
+
+{
+  "ts": 1774300000,
+  "source": "openclaw-agent",
+  "calendar": {
+    "windowDays": 7,
+    "events": [
+      {
+        "id": "evt_123",
+        "title": "Team Sync",
+        "startTime": "2026-03-24T14:00:00Z",
+        "endTime": "2026-03-24T14:30:00Z",
+        "location": "Zoom",
+        "date": "2026-03-24",
+        "description": "Weekly planning session",
+        "htmlLink": "https://calendar.google.com/..."
+      }
+    ]
+  },
+  "emails": {
+    "unread": []
+  }
+}
+
+Required fields
+- ts
+- calendar.events[].id
+- calendar.events[].title
+- calendar.events[].startTime
+- calendar.events[].date
+
+Important behavior
+- Always send a full replacement snapshot, not a diff
+- If there are no upcoming events, send "events": []
+- Keep calendar dates in YYYY-MM-DD format
+- Prefer ISO 8601 timestamps for times
+- Include "emails": { "unread": [] } even if email sync is not implemented yet
+
+Recommended sync loop
+1. Fetch events from Google Calendar for the next 7 days.
+2. Map the events into the payload format.
+3. Build a snapshot object with the current unix timestamp in seconds.
+4. POST the snapshot to /api/agent/productivity.
+5. Sleep 5 minutes.
+6. Repeat.
+
+Success check
+- The POST returns HTTP 200 with {"ok": true, ...}
+- /calendar shows upcoming events
+- The Calendar page footer shows a recent "Last synced" time
+
+Failure handling
+- If Google Calendar returns no events, still send a valid empty snapshot
+- If one event is malformed, skip that event and continue
+- If the POST fails, do not stop the agent; retry on the next cycle
+
+Minimal valid calendar-only snapshot
+{
+  "ts": 1774300000,
+  "source": "openclaw-agent",
+  "calendar": {
+    "windowDays": 7,
+    "events": []
+  },
+  "emails": {
+    "unread": []
+  }
+}

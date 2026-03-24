@@ -91,6 +91,66 @@ async function StatusPanel() {
   );
 }
 
+function formatLogTimestamp(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  });
+}
+
+function logLevelClasses(level?: string) {
+  switch ((level || "").toUpperCase()) {
+    case "ERROR":
+      return "border-red-500/30 bg-red-500/10 text-red-200";
+    case "WARN":
+    case "WARNING":
+      return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+    case "INFO":
+      return "border-sky-500/30 bg-sky-500/10 text-sky-200";
+    default:
+      return "border-zinc-700 bg-zinc-800/70 text-zinc-300";
+  }
+}
+
+type CondensedLogLine = {
+  line: LogLine;
+  count: number;
+};
+
+function condenseLogLines(lines: LogLine[]): CondensedLogLine[] {
+  const condensed: CondensedLogLine[] = [];
+
+  for (const line of lines) {
+    const message = (line.msg ?? line.message ?? line.raw ?? "").trim();
+    const level = (line.level ?? line.logLevelName ?? "LOG").toUpperCase();
+    const previous = condensed[condensed.length - 1];
+    const previousMessage = (previous?.line.msg ?? previous?.line.message ?? previous?.line.raw ?? "").trim();
+    const previousLevel = (previous?.line.level ?? previous?.line.logLevelName ?? "LOG").toUpperCase();
+
+    if (previous && previousMessage === message && previousLevel === level) {
+      previous.count += 1;
+      previous.line = {
+        ...previous.line,
+        time: line.time ?? line.timestamp ?? previous.line.time,
+        timestamp: line.timestamp ?? line.time ?? previous.line.timestamp,
+      };
+      continue;
+    }
+
+    condensed.push({ line: { ...line }, count: 1 });
+  }
+
+  return condensed;
+}
+
 async function LogsPanel() {
   const data = await getLogsData(200);
 
@@ -102,22 +162,53 @@ async function LogsPanel() {
     return <div className="text-zinc-400">{data.note || "Waiting for logs from KiloClaw..."}</div>;
   }
 
-  const lines = data.lines
-    .map((line: LogLine) => {
-      if (line.raw) return String(line.raw);
-      const msg = line.msg ?? line.message ?? JSON.stringify(line);
-      const time = line.time ?? line.timestamp ?? "";
-      const level = line.level ?? line.logLevelName ?? "";
-      return `${time} ${level} ${msg}`.trim();
-    })
-    .slice(-200);
+  const lines = condenseLogLines(data.lines.slice(-200));
 
   return (
-    <pre className="max-h-[420px] overflow-auto rounded-lg border border-zinc-800 bg-black/40 p-3 text-xs text-zinc-200">
-      {lines.join("\n")}
-    </pre>
+    <div className="max-h-[420px] overflow-auto rounded-lg border border-zinc-800 bg-black/30">
+      <table className="w-full border-collapse text-left text-xs text-zinc-200">
+        <thead className="sticky top-0 bg-zinc-950/95 text-zinc-400 backdrop-blur">
+          <tr>
+            <th className="border-b border-zinc-800 px-3 py-2 font-medium">Time</th>
+            <th className="border-b border-zinc-800 px-3 py-2 font-medium">Level</th>
+            <th className="border-b border-zinc-800 px-3 py-2 font-medium">Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {lines.map(({ line, count }, index) => {
+            const message = line.msg ?? line.message ?? line.raw ?? "";
+            const level = (line.level ?? line.logLevelName ?? "LOG").toUpperCase();
+            const time = formatLogTimestamp(line.time ?? line.timestamp);
+
+            return (
+              <tr key={`${line.time ?? "row"}-${index}`} className="align-top odd:bg-zinc-900/20">
+                <td className="border-b border-zinc-900 px-3 py-2 font-mono text-[11px] text-zinc-400 whitespace-nowrap">
+                  {time}
+                </td>
+                <td className="border-b border-zinc-900 px-3 py-2 whitespace-nowrap">
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide ${logLevelClasses(level)}`}>
+                    {level}
+                  </span>
+                </td>
+                <td className="border-b border-zinc-900 px-3 py-2 text-zinc-200">
+                  <div className="flex items-start gap-2">
+                    <div className="whitespace-pre-wrap break-words">{message}</div>
+                    {count > 1 ? (
+                      <span className="shrink-0 rounded-full border border-zinc-700 bg-zinc-800/80 px-2 py-0.5 text-[10px] font-semibold text-zinc-300">
+                        x{count}
+                      </span>
+                    ) : null}
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   );
 }
+
 
 async function ProcessesPanel() {
   const data = await getProcessesData();
